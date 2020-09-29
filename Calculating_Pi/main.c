@@ -43,15 +43,16 @@
 
 extern void vApplicationIdleHook( void );
 void vLeibniz(void *pvParameters);
-void vMachin(void *pvParameters);
+void vKellalur(void *pvParameters);
 void vButtonTask(void *pvParameters);
 void vSteuerTask(void *pvParameters);
 
 float Pi = 0;
-float Pi_1=0;
+
+
 
 TaskHandle_t xLeibniz;
-TaskHandle_t xMachin;
+TaskHandle_t xKellalur;
 TaskHandle_t xSteuerTask;
 TaskHandle_t xButtonTaskHandle;
 
@@ -70,7 +71,7 @@ int main(void)
     xTaskCreate(vButtonTask, (const char *) "ButtonTask", configMINIMAL_STACK_SIZE, NULL, 2, &xButtonTaskHandle);
 	//xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
     xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+10, NULL, 2, &xSteuerTask);
-    xTaskCreate(vMachin, (const char *) "MachinTask", configMINIMAL_STACK_SIZE, NULL, 2, &xMachin);
+    xTaskCreate(vKellalur(), (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
 
 	
 	vTaskStartScheduler();
@@ -93,22 +94,25 @@ void vLeibniz(void *pvParameters)
          n+=2;
          Pi=4*Pi4;
          
-        vTaskDelay(5/ portTICK_RATE_MS);
+        
 	}
 }
 
-void vMachin (void *pvParameters)
+void vKellalur (void *pvParameters)
 {
     (void) pvParameters;
     
-    float Pi_Vier=1;
+    float Pi_1=3;
+    float n_1=3;
     
     while(1)
     {
-        Pi_Vier=(4*atan(1/5))-atan(1/239);
-        Pi_1=4*Pi_Vier;
+        Pi_1+=4/(n_1^3-n_1);
+        n_1+=2;
+        Pi_1-=4/(n_1^3-n_1);
+        n_1+=2;
         
-        vTaskDelay(5/ portTICK_RATE_MS);
+       
     }
     
 }
