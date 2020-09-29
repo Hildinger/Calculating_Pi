@@ -38,6 +38,12 @@
 #define BUTTON2LONGPRESSEDMASK      0x20
 #define BUTTON3LONGPRESSEDMASK      0x40
 #define BUTTON4LONGPRESSEDMASK      0x80
+#define ALGSTOPP                    0x01
+#define ALG_AM_WARTEN               0x02
+#define ALG_GO                       0x04
+#define ALGSTOPP_2                  0x08
+#define ALG_AM_WARTEN_2             0x10
+#define ALG_GO_2
 
 
 
@@ -48,13 +54,17 @@ void vButtonTask(void *pvParameters);
 void vSteuerTask(void *pvParameters);
 
 float Pi = 0;
-
+float Pi_2=0;
 
 
 TaskHandle_t xLeibniz;
 TaskHandle_t xKellalur;
 TaskHandle_t xSteuerTask;
 TaskHandle_t xButtonTaskHandle;
+
+EventGroupHandle_t xKommunikation;
+
+
 
 void vApplicationIdleHook( void )
 {	
@@ -71,8 +81,9 @@ int main(void)
     xTaskCreate(vButtonTask, (const char *) "ButtonTask", configMINIMAL_STACK_SIZE, NULL, 2, &xButtonTaskHandle);
 	//xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
     xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+10, NULL, 2, &xSteuerTask);
-    xTaskCreate(vKellalur(), (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
-
+    xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
+    
+    xKommunikation=xEventGroupCreate();
 	
 	vTaskStartScheduler();
 	return 0;
@@ -92,7 +103,14 @@ void vLeibniz(void *pvParameters)
          n+=2;
          Pi4+=(1/n);
          n+=2;
-         Pi=4*Pi4;
+         
+         if(xEventGroupGetBits(xKommunikation)&ALGSTOPP)
+         {
+             Pi=4*Pi4;
+             xEventGroupSetBits(xKommunikation,ALG_AM_WARTEN);
+             xEventGroupWaitBits(xKommunikation,ALG_GO,pdTRUE);
+             
+         }
          
         
 	}
@@ -112,6 +130,14 @@ void vKellalur (void *pvParameters)
         Pi_1-=4/(n_1^3-n_1);
         n_1+=2;
         
+        if(xEventGroupGetBits(xKommunikation)&ALGSTOPP_2)
+        {
+            Pi_2=Pi_1;
+            xEventGroupSetBits(xKommunikation,ALG_AM_WARTEN_2);
+            xEventGroupWaitBits(xKommunikation,ALG_GO_2,pdTRUE);
+            
+        }
+        
        
     }
     
@@ -121,15 +147,29 @@ void vSteuerTask(void *pvParameters)
 {
     (void) pvParameters;
     
+    float LocalPi;
+    float LocalPi_2;
     uint32_t Buttonvalue;
     char Pi_String[10];
+    char Pi_2_String[10];
     
     while(1)
     
     {
         vDisplayClear();
-        sprintf(Pi_String, "%f",Pi);
+        xEventGroupSetBits(xKommunikation,ALGSTOPP);
+        xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN,pdTRUE);
+        LocalPi=Pi
+        xEventGroupSetBits(xKommunikation,ALG_GO);
+        sprintf(Pi_String, "%f",LocalPi);
         vDisplayWriteStringAtPos(0,0,"Pi=%s",Pi_String);
+        xEventGroupSetBits(xKommunikation,ALGSTOPP_2);
+        xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN_2,pdTRUE);
+        LocalPi_2=Pi_2
+        xEventGroupSetBits(xKommunikation,ALG_GO_2);
+        sprintf(Pi_String, "%f",LocalPi_2);
+        vDisplayWriteStringAtPos(0,0,"Pi_2=%s",Pi_2_String);
+        
        
         
         xTaskNotifyWait(0,0xfffffff,&Buttonvalue,0/portTICK_RATE_MS);
@@ -155,6 +195,11 @@ void vSteuerTask(void *pvParameters)
         {
             vTaskDelete(xLeibniz);
             xLeibniz=NULL;
+        }
+        
+        if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
+        {
+            
         }
         vTaskDelay(500 / portTICK_RATE_MS);
     }
