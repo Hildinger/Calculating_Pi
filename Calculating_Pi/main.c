@@ -81,7 +81,7 @@ int main(void)
     xTaskCreate(vButtonTask, (const char *) "ButtonTask", configMINIMAL_STACK_SIZE, NULL, 2, &xButtonTaskHandle);
 	//xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
     xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+10, NULL, 2, &xSteuerTask);
-    xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
+    //xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
     
     xKommunikation=xEventGroupCreate();
 	
@@ -203,7 +203,7 @@ void vSteuerTask(void *pvParameters)
                      if (xLeibniz==NULL)||(xKellalur==NULL)
                     {
                         xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
-                         xTaskCreate( vKellalur(), (const char *) "Kellular", configMINIMAL_STACK_SIZE+10, NULL, 1, &xKellalur);
+                        xTaskCreate( vKellalur(), (const char *) "Kellular", configMINIMAL_STACK_SIZE+10, NULL, 1, &xKellalur);
                     }
                     else
                     {
