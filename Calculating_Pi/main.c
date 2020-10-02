@@ -152,9 +152,18 @@ void vSteuerTask(void *pvParameters)
     uint32_t Buttonvalue;
     char Pi_String[10];
     char Pi_2_String[10];
+    uint8_t Steuerung=1;
+    
+    typedef enum
+    {
+        Start,
+        Stopp,
+        Zurueck,
+        Wechsel,
+    } eSteuerugStates;
+      eSteuerugStates = Start;
     
     while(1)
-    
     {
         vDisplayClear();
         xEventGroupSetBits(xKommunikation,ALGSTOPP);
@@ -170,37 +179,76 @@ void vSteuerTask(void *pvParameters)
         sprintf(Pi_String, "%f",LocalPi_2);
         vDisplayWriteStringAtPos(0,0,"Pi_2=%s",Pi_2_String);
         
-       
-        
         xTaskNotifyWait(0,0xfffffff,&Buttonvalue,0/portTICK_RATE_MS);
         
-        if (Buttonvalue&BUTTON1SHORTPRESSEDMASK)
-        {
-            if (xLeibniz==NULL)
+        switch(Steuerung)
+        
+        case Start: 
+        {   
+            if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
             {
-                 xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
+                eSteuerugStates=Stopp;
             }
-            else
+            
+            if (Buttonvalue&BUTTON3SHORTPRESSEDMASK)
             {
-                vTaskResume(xLeibniz); 
-            }            
+                eSteuerugStates=Zurueck;
+            }
+            if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
+            {
+                eSteuerugStates=Wechsel;
+            }
+                 if (Buttonvalue&BUTTON1SHORTPRESSEDMASK)
+                 {
+                     if (xLeibniz==NULL)||(xKellalur==NULL)
+                    {
+                        xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
+                         xTaskCreate( vKellalur(), (const char *) "Kellular", configMINIMAL_STACK_SIZE+10, NULL, 1, &xKellalur);
+                    }
+                    else
+                    {
+                        vTaskResume(xLeibniz);
+                        vTaskResume(xKellalur); 
+                    }            
+                
+            }
+        break;    
+        }         
+        
+        case Stopp:
+        {
+            if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
+            {
+                eSteuerugStates=Start;
+            }
             
+            if(Buttonvalue&BUTTON2SHORTPRESSEDMASK)
+            {
+                vTaskSuspend(xLeibniz);
+                vTaskSuspend(xKellalur);
+            }
+        break;    
         }
         
-        if(Buttonvalue&BUTTON2SHORTPRESSEDMASK)
-        {
-            vTaskSuspend(xLeibniz);
-        }
-        if(Buttonvalue&BUTTON3SHORTPRESSEDMASK)
-        {
-            vTaskDelete(xLeibniz);
-            xLeibniz=NULL;
-        }
+        case Zurueck:
+        {        
+                
+                if(Buttonvalue&BUTTON3SHORTPRESSEDMASK)
+            {
+                vTaskDelete(xLeibniz);
+                xLeibniz=NULL;
+            }
+        break;    
+        }            
         
-        if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
+        case Wechsel:
         {
+            if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
+            {
             
-        }
+            }
+        break;    
+        }            
         vTaskDelay(500 / portTICK_RATE_MS);
     }
         
