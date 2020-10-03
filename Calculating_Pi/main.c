@@ -40,10 +40,23 @@
 #define BUTTON4LONGPRESSEDMASK      0x80
 #define ALGSTOPP                    0x01
 #define ALG_AM_WARTEN               0x02
-#define ALG_GO                       0x04
+#define ALG_GO                      0x04
 #define ALGSTOPP_2                  0x08
 #define ALG_AM_WARTEN_2             0x10
-#define ALG_GO_2
+#define ALG_GO_2                    0x20
+#define STOPPCALC                   0x0100
+#define STARTCALC                   0x0200
+#define RESETCALC                   0x0400
+#define STOPPCALC_2                 0x0800
+#define STARTCALC_2                 0x1000
+#define RESETCALC_2                 0x2000
+#define LEIBNIZ                     0x01
+#define KELLULAR                    0x02
+#define GET_TIME                    0X01
+#define WAIT_TIMER                  0X02
+#define RUN_TIMER                   0X04
+#define RESET_TIME                  0X08
+
 
 
 
@@ -52,17 +65,34 @@ void vLeibniz(void *pvParameters);
 void vKellalur(void *pvParameters);
 void vButtonTask(void *pvParameters);
 void vSteuerTask(void *pvParameters);
+void vGetTime(void *pvParameters);
 
-float Pi = 0;
+float Pi = 0;           //Globale Variabel für Pi, zum Zwischenspeichern
 float Pi_2=0;
+uint32_t Timer_ms= 0;
+uint32_t IR_counter=0;
+
+
+
+
+typedef enum
+{
+    Start,
+    Stopp,
+    Zurueck,
+    Wechsel,
+} eSteuerugStates;
+    
 
 
 TaskHandle_t xLeibniz;
 TaskHandle_t xKellalur;
 TaskHandle_t xSteuerTask;
 TaskHandle_t xButtonTaskHandle;
+TaskHandle_t xGetTime;
 
 EventGroupHandle_t xKommunikation;
+EventGroupHandle_t xTimeKom;
 
 
 
@@ -73,17 +103,21 @@ void vApplicationIdleHook( void )
 
 int main(void)
 {
-    resetReason_t reason = getResetReason();
-
+    
 	vInitClock();
 	vInitDisplay();
 	
     xTaskCreate(vButtonTask, (const char *) "ButtonTask", configMINIMAL_STACK_SIZE, NULL, 2, &xButtonTaskHandle);
-	//xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
     xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+10, NULL, 2, &xSteuerTask);
-    //xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
+    xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
+    xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
+    //xTaskCreate(vGetTime, (const char *) "GetTime", configMINIMAL_STACK_SIZE+10, NULL, 2, &xGetTime);
     
     xKommunikation=xEventGroupCreate();
+    xTimeKom=xEventGroupCreate();
+    
+    xEventGroupSetBits(xKommunikation,STOPPCALC);
+    xEventGroupSetBits(xKommunikation,STOPPCALC_2);
 	
 	vTaskStartScheduler();
 	return 0;
@@ -99,17 +133,34 @@ void vLeibniz(void *pvParameters)
         
         while(1)
     {     
-         Pi4-=(1/n);
-         n+=2;
-         Pi4+=(1/n);
-         n+=2;
-         
-         if(xEventGroupGetBits(xKommunikation)&ALGSTOPP)
+        if (xEventGroupGetBits(xKommunikation)&STARTCALC)
+        {
+            Pi4-=(1/n);
+            n+=2;
+            Pi4+=(1/n);
+            n+=2;
+        }
+        else if(xEventGroupGetBits(xKommunikation)&STOPPCALC)
+        {
+            if (xEventGroupGetBits(xKommunikation)&RESETCALC)
+            {
+                Pi4=1;
+                n=3;
+                xEventGroupClearBits(xKommunikation,RESETCALC);
+            }
+            vTaskDelay(20 / portTICK_RATE_MS);
+        }
+        if ((uint32_t)(Pi4*100000)==(uint32_t)(M_PI_4*100000))
+        {
+            TCC1.CTRLA=0;
+        }
+                 
+        if(xEventGroupGetBits(xKommunikation)&ALGSTOPP)    //Wartet auf die Information
          {
              Pi=4*Pi4;
-             xEventGroupSetBits(xKommunikation,ALG_AM_WARTEN);
-             xEventGroupWaitBits(xKommunikation,ALG_GO,pdTRUE);
-             
+             xEventGroupSetBits(xKommunikation,ALG_AM_WARTEN);  //Sendet die Information
+             xEventGroupWaitBits(xKommunikation,ALG_GO,pdTRUE,pdTRUE,5/ portTICK_RATE_MS); // Bekommt die Information zurück
+             xEventGroupClearBits(xKommunikation,ALG_AM_WARTEN);
          }
          
         
@@ -124,17 +175,35 @@ void vKellalur (void *pvParameters)
     float n_1=3;
     
     while(1)
-    {
-        Pi_1+=4/(n_1^3-n_1);
-        n_1+=2;
-        Pi_1-=4/(n_1^3-n_1);
-        n_1+=2;
+    {         
+        if (xEventGroupGetBits(xKommunikation)&STARTCALC_2)
+        {
+          Pi_1+=4/(pow(n_1,3)-n_1);
+          n_1+=2;
+          Pi_1-=4/(pow(n_1,3)-n_1);
+          n_1+=2;  
+        }
+        else if(xEventGroupGetBits(xKommunikation)&STOPPCALC_2)
+        {
+            if (xEventGroupGetBits(xKommunikation)&RESETCALC_2)
+            {
+                Pi_1=3;
+                n_1=3;
+                xEventGroupClearBits(xKommunikation,RESETCALC_2);
+            }
+            vTaskDelay(20 / portTICK_RATE_MS);
+        } 
+        if ((uint32_t)(Pi_1*100000)==(uint32_t)(M_PI*100000))
+        {
+            TCC1.CTRLA=0;
+        }           
         
         if(xEventGroupGetBits(xKommunikation)&ALGSTOPP_2)
         {
             Pi_2=Pi_1;
             xEventGroupSetBits(xKommunikation,ALG_AM_WARTEN_2);
-            xEventGroupWaitBits(xKommunikation,ALG_GO_2,pdTRUE);
+            xEventGroupWaitBits(xKommunikation,ALG_GO_2,pdTRUE,pdTRUE,5/ portTICK_RATE_MS);
+            xEventGroupClearBits(xKommunikation,ALG_AM_WARTEN_2);
             
         }
         
@@ -152,112 +221,205 @@ void vSteuerTask(void *pvParameters)
     uint32_t Buttonvalue;
     char Pi_String[10];
     char Pi_2_String[10];
-    uint8_t Steuerung=1;
+    char Timer_String[10];
+    uint8_t Algo =LEIBNIZ;
+    uint32_t Local_ms=0;
+    eSteuerugStates Steuerung = Start;
     
-    typedef enum
-    {
-        Start,
-        Stopp,
-        Zurueck,
-        Wechsel,
-    } eSteuerugStates;
-      eSteuerugStates = Start;
+
     
     while(1)
     {
         vDisplayClear();
-        xEventGroupSetBits(xKommunikation,ALGSTOPP);
-        xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN,pdTRUE);
-        LocalPi=Pi
-        xEventGroupSetBits(xKommunikation,ALG_GO);
-        sprintf(Pi_String, "%f",LocalPi);
-        vDisplayWriteStringAtPos(0,0,"Pi=%s",Pi_String);
-        xEventGroupSetBits(xKommunikation,ALGSTOPP_2);
-        xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN_2,pdTRUE);
-        LocalPi_2=Pi_2
-        xEventGroupSetBits(xKommunikation,ALG_GO_2);
-        sprintf(Pi_String, "%f",LocalPi_2);
-        vDisplayWriteStringAtPos(0,0,"Pi_2=%s",Pi_2_String);
-        
+        if (Algo==LEIBNIZ)
+        {
+            xEventGroupSetBits(xKommunikation,ALGSTOPP);
+            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+            LocalPi=Pi;
+            xEventGroupSetBits(xKommunikation,ALG_GO);
+            xEventGroupClearBits(xKommunikation,ALGSTOPP);
+            sprintf(Pi_String, "%f",LocalPi);
+            vDisplayWriteStringAtPos(0,0,"Pi=%s",Pi_String);
+        }
+        else if(Algo==KELLULAR)
+        {
+            xEventGroupSetBits(xKommunikation,ALGSTOPP_2);
+            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN_2,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+            LocalPi_2=Pi_2;
+            xEventGroupSetBits(xKommunikation,ALG_GO_2);
+            xEventGroupClearBits(xKommunikation,ALGSTOPP_2);
+            sprintf(Pi_2_String, "%f",LocalPi_2);
+            vDisplayWriteStringAtPos(1,0,"Pi_2=%s",Pi_2_String);
+        }
+        /*xEventGroupSetBits(xTimeKom,GET_TIME);
+        xEventGroupWaitBits(xTimeKom,WAIT_TIMER,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+        Local_ms=Timer_ms;
+        xEventGroupSetBits(xTimeKom,RUN_TIMER);
+        sprintf(Timer_String, "%lu",Local_ms);
+        vDisplayWriteStringAtPos(2,0,"Timer %s",Timer_String);*/
+                
         xTaskNotifyWait(0,0xfffffff,&Buttonvalue,0/portTICK_RATE_MS);
         
         switch(Steuerung)
-        
-        case Start: 
-        {   
-            if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
-            {
-                eSteuerugStates=Stopp;
-            }
+        {
+
+            case Start: 
+            {   
+                if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
+                {
+                    Steuerung=Stopp;
+                }
             
-            if (Buttonvalue&BUTTON3SHORTPRESSEDMASK)
-            {
-                eSteuerugStates=Zurueck;
-            }
-            if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
-            {
-                eSteuerugStates=Wechsel;
-            }
-                 if (Buttonvalue&BUTTON1SHORTPRESSEDMASK)
-                 {
-                     if (xLeibniz==NULL)||(xKellalur==NULL)
+                if (Buttonvalue&BUTTON3SHORTPRESSEDMASK)
+                {
+                    Steuerung=Zurueck;
+                }
+                if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
+                {
+                    Steuerung=Wechsel;
+                }
+                if (Buttonvalue&BUTTON1SHORTPRESSEDMASK)
+                {
+                    if (Algo==LEIBNIZ)
                     {
-                        xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
-                        xTaskCreate( vKellalur(), (const char *) "Kellular", configMINIMAL_STACK_SIZE+10, NULL, 1, &xKellalur);
+                        xEventGroupClearBits(xKommunikation,STOPPCALC);
+                        xEventGroupSetBits(xKommunikation,STARTCALC);
+                        TCC1.CTRLA|= 0b0100 << TC1_CLKSEL_gp;      
                     }
-                    else
+                    else if(Algo==KELLULAR)
                     {
-                        vTaskResume(xLeibniz);
-                        vTaskResume(xKellalur); 
+                        xEventGroupClearBits(xKommunikation,STOPPCALC_2);
+                        xEventGroupSetBits(xKommunikation,STARTCALC_2);
+                        TCC1.CTRLA|= 0b0100 << TC1_CLKSEL_gp;                              
                     }            
                 
-            }
-        break;    
-        }         
+                }
+            break;    
+            }         
         
-        case Stopp:
-        {
-            if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
+            case Stopp:
             {
-                eSteuerugStates=Start;
+                    TCC1.CTRLA=0;
+                    if (Algo==LEIBNIZ)
+                    {
+                        xEventGroupSetBits(xKommunikation,STOPPCALC);
+                        xEventGroupClearBits(xKommunikation,STARTCALC);
+                    }
+                    else if (Algo==KELLULAR)
+                    {
+                       xEventGroupSetBits(xKommunikation,STOPPCALC_2);
+                       xEventGroupClearBits(xKommunikation,STARTCALC_2);
+                    }
+                Steuerung=Start; 
+            break;    
             }
+        
+            case Zurueck:
+            {     
+                    xEventGroupSetBits(xTimeKom,RESET_TIME);
+                    
+                    if (Algo==LEIBNIZ)
+                    {
+                       if (xEventGroupGetBits(xKommunikation)&STOPPCALC)
+                       {
+                           xEventGroupSetBits(xKommunikation,RESETCALC);
+                       }
+                        
+                       
+                    }
+                    else if (Algo==KELLULAR)
+                    {
+                        if (xEventGroupGetBits(xKommunikation)&STOPPCALC_2)
+                        {
+                           xEventGroupSetBits(xKommunikation,RESETCALC_2);
+                        }           
+                    }
+                Steuerung=Start;
             
-            if(Buttonvalue&BUTTON2SHORTPRESSEDMASK)
-            {
-                vTaskSuspend(xLeibniz);
-                vTaskSuspend(xKellalur);
-            }
-        break;    
-        }
+            break;    
+            }            
         
-        case Zurueck:
-        {        
-                
-                if(Buttonvalue&BUTTON3SHORTPRESSEDMASK)
+            case Wechsel:
             {
-                vTaskDelete(xLeibniz);
-                xLeibniz=NULL;
-            }
-        break;    
-        }            
-        
-        case Wechsel:
-        {
-            if (Buttonvalue&BUTTON4SHORTPRESSEDMASK)
-            {
-            
-            }
-        break;    
-        }            
+              TCC1.CTRLA=0;
+              xEventGroupSetBits(xTimeKom,RESET_TIME);
+              
+              if (Algo==LEIBNIZ)
+              {
+                  xEventGroupSetBits(xKommunikation,STOPPCALC);
+                  xEventGroupClearBits(xKommunikation,STARTCALC);
+                  Algo=KELLULAR;
+              }
+              else
+              {
+                  xEventGroupSetBits(xKommunikation,STOPPCALC_2);
+                  xEventGroupClearBits(xKommunikation,STARTCALC_2);
+                  Algo=LEIBNIZ;
+              }              
+
+            Steuerung=Start;
+            break;    
+            }       
+        }             
         vTaskDelay(500 / portTICK_RATE_MS);
+                      
     }
         
     
 }
 
+ISR( TCC1_OVF_vect)
+{
+    BaseType_t Priority = pdFALSE;
+    xTaskNotifyFromISR( xGetTime,IR_counter, eIncrement, &Priority );
+
+}
+
+void vGetTime(void *pvParameters) 
+{
+    (void) pvParameters;
+    uint32_t NotificationValue;
+    uint32_t TimerCnt= 0;
+    
+    
+    TCC1.INTCTRLA|= 1 << TC1_OVFINTLVL_gp;
+    TCC1.PER= 3999;
+    PMIC.CTRL|= 1 << PMIC_LOLVLEN_bp;
+    
+    for(;;) 
+    {
+        
+        xTaskNotifyWait(0,0xffffffff,&NotificationValue, pdMS_TO_TICKS(0));
+        
+        if(NotificationValue>=1)
+        {
+            TimerCnt+=NotificationValue;
+            NotificationValue=0;
+            if (xEventGroupWaitBits(xTimeKom,RESET_TIME|GET_TIME,pdFALSE,pdFALSE,100/ portTICK_RATE_MS))
+            {
+                if (xEventGroupGetBits(xTimeKom)&RESET_TIME)
+                {
+                    xEventGroupClearBits(xTimeKom,RESET_TIME);
+                    TimerCnt=0;
+                    Timer_ms=0;
+                }
+             
+                if(xEventGroupGetBits(xTimeKom)&GET_TIME)    //Wartet auf die Information
+                {
+                    Timer_ms=TimerCnt;
+                    xEventGroupClearBits(xTimeKom,GET_TIME);
+                    xEventGroupSetBits(xTimeKom,WAIT_TIMER);  //Sendet die Information
+                    xEventGroupWaitBits(xTimeKom,RUN_TIMER,pdTRUE,pdTRUE,5/ portTICK_RATE_MS); // Bekommt die Information zurück
+                    xEventGroupClearBits(xTimeKom,WAIT_TIMER);
+                }
+            }
+        }
+
+    }
+}
+
 void vButtonTask(void *pvParameters) {
     initButtons();
-    vTaskDelay(3000);
 
     for(;;) {
         updateButtons();
