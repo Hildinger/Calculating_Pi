@@ -114,9 +114,9 @@ int main(void)
     xEventGroupSetBits(xKommunikation,STOPPCALC_2);
     
     xTaskCreate(vButtonTask, (const char *) "ButtonTask", configMINIMAL_STACK_SIZE, NULL, 2, &xButtonTaskHandle);
-    xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+10, NULL, 2, &xSteuerTask);
-    xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+10, NULL, 1, &xLeibniz);
-    xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE, NULL, 1, &xKellalur);
+    xTaskCreate( vSteuerTask, (const char *) "SteuerTask", configMINIMAL_STACK_SIZE+60, NULL, 2, &xSteuerTask);
+    xTaskCreate( vLeibniz, (const char *) "Leibniz", configMINIMAL_STACK_SIZE+50, NULL, 1, &xLeibniz);
+    xTaskCreate(vKellalur, (const char *) "KellalurTask", configMINIMAL_STACK_SIZE+50, NULL, 1, &xKellalur);
     xTaskCreate(vGetTime, (const char *) "GetTime", configMINIMAL_STACK_SIZE+10, NULL, 2, &xGetTime);
     
 	
@@ -231,42 +231,45 @@ void vSteuerTask(void *pvParameters)
     
     while(1)
     {
+        xTaskNotifyWait(0,0xfffffff,&Buttonvalue,1/portTICK_RATE_MS);
+        
         vDisplayClear();
         if (Algo==LEIBNIZ)
         {
-            xEventGroupSetBits(xKommunikation,ALGSTOPP);
-            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+            xEventGroupSetBits(xKommunikation,ALGSTOPP);                                         //Sendet die Infos an den LeibnizTask
+            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN,pdTRUE,pdTRUE,5/portTICK_RATE_MS); //Bekommt die Infos von LeibnizTask
             LocalPi=Pi;
-            xEventGroupClearBits(xKommunikation,ALGSTOPP);
-            xEventGroupSetBits(xKommunikation,ALG_GO);
-            sprintf(Pi_String, "%f",LocalPi);
-            vDisplayWriteStringAtPos(0,0,"Pi=%s",Pi_String);
+            xEventGroupClearBits(xKommunikation,ALGSTOPP);      // Die Bits Infos werden gelöscht
+            xEventGroupSetBits(xKommunikation,ALG_GO);          // Die Bit Info werden gesendet an Leibniz
+            sprintf(Pi_String, "%f",LocalPi);                   // Local Pi wird in den String kopiert
+            vDisplayWriteStringAtPos(0,0,"Pi=%s",Pi_String);    // Pi wird auf den Display ausgegeben
         }
         else if(Algo==KELLULAR)
         {
-            xEventGroupSetBits(xKommunikation,ALGSTOPP_2);
-            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN_2,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+            xEventGroupSetBits(xKommunikation,ALGSTOPP_2);          //Sendet die Bit Indos an Kellular Alg. 
+            xEventGroupWaitBits(xKommunikation,ALG_AM_WARTEN_2,pdTRUE,pdTRUE,5/portTICK_RATE_MS); //Bekommt die Bit Infos von Kellular
             LocalPi_2=Pi_2;
             xEventGroupClearBits(xKommunikation,ALGSTOPP_2);
             xEventGroupSetBits(xKommunikation,ALG_GO_2);
             sprintf(Pi_2_String, "%f",LocalPi_2);
             vDisplayWriteStringAtPos(1,0,"Pi_2=%s",Pi_2_String);
         }
-        xEventGroupSetBits(xTimeKom,GET_TIME);
-        xEventGroupWaitBits(xTimeKom,WAIT_TIMER,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
-        Local_ms=Timer_ms;
-        xEventGroupClearBits(xTimeKom,GET_TIME);
-        xEventGroupSetBits(xTimeKom,RUN_TIMER);
-        sprintf(Timer_String, "%lu",Local_ms);
-        vDisplayWriteStringAtPos(2,0,"Timer %s",Timer_String);
                 
-        xTaskNotifyWait(0,0xfffffff,&Buttonvalue,0/portTICK_RATE_MS);
+       
         
         switch(Steuerung)
         {
 
             case Start: 
             {   
+                xEventGroupSetBits(xTimeKom,GET_TIME);
+                xEventGroupWaitBits(xTimeKom,WAIT_TIMER,pdTRUE,pdTRUE,5/portTICK_RATE_MS);
+                Local_ms=Timer_ms;
+                xEventGroupClearBits(xTimeKom,GET_TIME);
+                xEventGroupSetBits(xTimeKom,RUN_TIMER);
+                sprintf(Timer_String, "%lu",Local_ms);
+                vDisplayWriteStringAtPos(2,0,"Timer %s",Timer_String);
+                
                 if (Buttonvalue&BUTTON2SHORTPRESSEDMASK)
                 {
                     Steuerung=Stopp;
@@ -463,26 +466,7 @@ void vButtonTask(void *pvParameters) {
             xTaskNotify(xSteuerTask,BUTTON4SHORTPRESSEDMASK,eSetValueWithOverwrite);
             
         }
-        if(getButtonPress(BUTTON1) == LONG_PRESSED) {
-            
-            xTaskNotify(xSteuerTask,BUTTON1LONGPRESSEDMASK,eSetValueWithOverwrite);
-            
-        }
-        if(getButtonPress(BUTTON2) == LONG_PRESSED) {
-            
-            xTaskNotify(xSteuerTask,BUTTON2LONGPRESSEDMASK,eSetValueWithOverwrite);
-            
-        }
-        if(getButtonPress(BUTTON3) == LONG_PRESSED) {
-            
-            xTaskNotify(xSteuerTask,BUTTON3LONGPRESSEDMASK,eSetValueWithOverwrite);
-            
-        }
-        if(getButtonPress(BUTTON4) == LONG_PRESSED) {
-            
-            xTaskNotify(xSteuerTask,BUTTON4LONGPRESSEDMASK,eSetValueWithOverwrite);
-            
-        }
+
         vTaskDelay((1000/BUTTON_UPDATE_FREQUENCY_HZ)/portTICK_RATE_MS);
     }
 
