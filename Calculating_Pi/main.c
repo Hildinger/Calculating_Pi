@@ -231,7 +231,7 @@ void vSteuerTask(void *pvParameters)
     
     while(1)
     {
-        xTaskNotifyWait(0,0xfffffff,&Buttonvalue,1/portTICK_RATE_MS);
+        xTaskNotifyWait(0,0xfffffff,&Buttonvalue,1/portTICK_RATE_MS); // Warte auf eine Aufgabe oder Aufgabe wird vom blockierten Zustand entfernt.
         
         vDisplayClear();
         if (Algo==LEIBNIZ)
@@ -418,9 +418,9 @@ void vGetTime(void *pvParameters)
             NotificationValue=0;
             
         }
-        if (xEventGroupWaitBits(xTimeKom,RESET_TIME|GET_TIME,pdFALSE,pdFALSE,pdMS_TO_TICKS(100)))
+        if (xEventGroupWaitBits(xTimeKom,RESET_TIME|GET_TIME,pdFALSE,pdFALSE,pdMS_TO_TICKS(100))) //Bekommt die Information
         {
-            if (xEventGroupGetBits(xTimeKom)&RESET_TIME)
+            if (xEventGroupGetBits(xTimeKom)&RESET_TIME)//Wartet auf die Information
             {
                 IR_counter=0;
                 TimerCnt=0;
