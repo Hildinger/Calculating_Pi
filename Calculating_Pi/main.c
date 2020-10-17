@@ -153,7 +153,7 @@ void vLeibniz(void *pvParameters)
                 n=3;
                 xEventGroupClearBits(xKommunikation,RESETCALC);
             }
-            vTaskDelay(20 / portTICK_RATE_MS);
+            vTaskDelay(10 / portTICK_RATE_MS);
         }
                  
         if(xEventGroupGetBits(xKommunikation)&ALGSTOPP)    //Wartet auf die Information
@@ -196,7 +196,8 @@ void vKellalur (void *pvParameters)
                 n_1=3;
                 xEventGroupClearBits(xKommunikation,RESETCALC_2);
             }
-            vTaskDelay(20 / portTICK_RATE_MS);
+            vTaskDelay(10 / portTICK_RATE_MS);
+            
         }          
         
         if(xEventGroupGetBits(xKommunikation)&ALGSTOPP_2)
@@ -410,7 +411,7 @@ void vGetTime(void *pvParameters)
     
     for(;;) 
     {
-        xTaskNotifyWait(0,0xffffffff,&NotificationValue, pdMS_TO_TICKS(0));
+        xTaskNotifyWait(0,0xffffffff,&NotificationValue, pdMS_TO_TICKS(15));
         
         if(NotificationValue>=1)
         {
@@ -433,7 +434,7 @@ void vGetTime(void *pvParameters)
             {
                 Timer_ms=TimerCnt;
                 xEventGroupSetBits(xTimeKom,WAIT_TIMER);  //Sendet die Information
-                xEventGroupWaitBits(xTimeKom,RUN_TIMER,pdTRUE,pdTRUE,5/ portTICK_RATE_MS); // Bekommt die Information zurück
+                xEventGroupWaitBits(xTimeKom,RUN_TIMER,pdTRUE,pdTRUE,15/ portTICK_RATE_MS); // Bekommt die Information zurück
                 xEventGroupClearBits(xTimeKom,WAIT_TIMER);
             }
         }
